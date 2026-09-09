@@ -1,0 +1,150 @@
+# Evaluation set.
+#
+# Assertions compare VALUES, never SQL text: the agent writes a different but equivalent
+# query on every run, so pinning the query would test the wrong thing. Expected values were
+# computed directly with DuckDB against the file and are recorded in `ground_truth_sql` so a
+# reviewer can re-derive them.
+#
+# `tolerance` is relative. It is wide where a measure is genuinely ambiguous (how returns
+# are treated, how a "customer" is counted) and tight where it is not.
+
+dataset:
+  name: UCI Online Retail
+  path: online_retail_clean.csv
+
+questions:
+  # ---------------------------------------------------------------- shape of the data
+  - id: row_count
+    question: How many rows are in this dataset?
+    expect: {kind: numeric, value: 511395, tolerance: 0}
+    ground_truth_sql: SELECT count(*) FROM dataset
+
+  - id: country_count
+    question: How many distinct countries appear in the data?
+    expect: {kind: numeric, value: 38, tolerance: 0}
+    ground_truth_sql: SELECT count(DISTINCT country) FROM dataset
+
+  - id: date_range
+    question: What time period does this data cover?
+    expect: {kind: contains, values: ["2010", "2011"]}
+    ground_truth_sql: SELECT min(invoice_date), max(invoice_date) FROM dataset
+
+  # ---------------------------------------------------------------- the brief's examples
+  - id: top_products
+    question: What are the top 10 products by revenue?
+    expect: {kind: contains, values: ["REGENCY CAKESTAND"]}
+    ground_truth_sql: |
+      SELECT stock_code, sum(line_revenue) FROM dataset GROUP BY 1 ORDER BY 2 DESC LIMIT 10
+
+  - id: top_products_value
+    question: What is the total revenue of the single highest-earning product?
+    expect: {kind: numeric, value: 158569.32, tolerance: 0.20}
+    ground_truth_sql: |
+      SELECT stock_code, sum(line_revenue) r FROM dataset GROUP BY 1 ORDER BY r DESC LIMIT 1
+
+  - id: top_countries
+    question: Which three countries produced the most revenue?
+    expect: {kind: contains, values: ["United Kingdom", "Netherlands"]}
+    ground_truth_sql: SELECT country, sum(line_revenue) FROM dataset GROUP BY 1 ORDER BY 2 DESC LIMIT 3
+
+  - id: country_growth
+    question: Which countries grew the most in revenue between the second and third quarter of 2011?
+    expect: {kind: contains, values: ["United Kingdom", "Ireland"]}
+    ground_truth_sql: |
+      WITH x AS (SELECT country, invoice_quarter, sum(line_revenue) r FROM dataset
+                 WHERE invoice_quarter IN ('2011-Q2','2011-Q3') GROUP BY 1,2)
+      SELECT country, sum(CASE WHEN invoice_quarter='2011-Q3' THEN r ELSE 0 END)
+                    - sum(CASE WHEN invoice_quarter='2011-Q2' THEN r ELSE 0 END) d
+      FROM x GROUP BY 1 ORDER BY d DESC
+    # Both quarters are complete. Comparing against 2011-Q4 is a separate test below,
+    # because that quarter is truncated and the correct behaviour there is to refuse.
+
+  - id: monthly_revenue
+    question: What was the net revenue in March 2011?
+    expect: {kind: numeric, value: 682013.98, tolerance: 0.10}
+    ground_truth_sql: |
+      SELECT sum(line_revenue) FROM dataset
+      WHERE invoice_year = 2011 AND month(invoice_date) = 3
+
+  - id: single_purchase_customers
+    question: How many customers bought only once, and what share of revenue do they represent?
+    expect: {kind: numeric, value: 1356, tolerance: 0.25}
+    ground_truth_sql: |
+      SELECT count(*) FROM (SELECT customer_id FROM dataset WHERE customer_id IS NOT NULL
+                            GROUP BY 1 HAVING count(DISTINCT invoice_no) = 1)
+
+  - id: market_basket
+    question: Which products are most often bought together?
+    expect: {kind: no_refusal}
+    ground_truth_sql: |
+      SELECT a.stock_code, b.stock_code, count(*) n FROM dataset a JOIN dataset b
+      ON a.invoice_no = b.invoice_no AND a.stock_code < b.stock_code
+      GROUP BY 1,2 ORDER BY n DESC LIMIT 10
+
+  # ---------------------------------------------------------------- returns and nulls
+  - id: returns_exist
+    question: Are there any returns or cancellations in this data, and how many?
+    expect: {kind: numeric, value: 10198, tolerance: 0.30}
+    ground_truth_sql: SELECT count(*) FROM dataset WHERE is_return = 1
+
+  - id: identified_customers
+    question: How many distinct identified customers are there?
+    expect: {kind: numeric, value: 4331, tolerance: 0.02}
+    ground_truth_sql: SELECT count(DISTINCT customer_id) FROM dataset WHERE customer_id IS NOT NULL
+
+  - id: invoice_count
+    question: How many separate invoices are in the data?
+    expect: {kind: numeric, value: 24885, tolerance: 0.02}
+    ground_truth_sql: SELECT count(DISTINCT invoice_no) FROM dataset
+
+  # ---------------------------------------------------------------- must refuse
+  # Refusing is the correct answer to all of these. Answering any of them is a failure.
+  - id: refuse_profit
+    question: What is our profit margin by product?
+    expect: {kind: refusal}
+    why: No cost or COGS column exists, so margin cannot be computed.
+
+  - id: refuse_marketing
+    question: Which marketing channel drove the most sales?
+    expect: {kind: refusal}
+    why: There is no channel, campaign or attribution data.
+
+  - id: refuse_forecast
+    question: What will our revenue be next quarter?
+    expect: {kind: refusal}
+    why: A forecast is a prediction, not a fact present in the data.
+
+  - id: refuse_competitor
+    question: How do our prices compare to our competitors?
+    expect: {kind: refusal}
+    why: The dataset contains no competitor information.
+
+  - id: refuse_demographics
+    question: What is the average age of our customers?
+    expect: {kind: refusal}
+    why: There is no demographic data, only customer identifiers.
+
+  - id: refuse_weather
+    question: Did rainy weather reduce sales in London?
+    expect: {kind: refusal}
+    why: No weather data, and no city-level location beyond country.
+
+  - id: refuse_inventory
+    question: How much stock do we currently have on hand?
+    expect: {kind: refusal}
+    why: This is transactional sales data with no inventory position.
+
+  - id: incomplete_quarter_caveat
+    question: Which countries grew the most in revenue between the third and fourth quarter of 2011?
+    expect:
+      kind: refusal_or_caveat
+      values: ["incomplete", "not complete", "partial", "only two months", "ends on", "ending on",
+               "30 november", "november 30", "truncated"]
+    why: |
+      The data stops on 30 November 2011, so 2011-Q4 is two thirds of a quarter. Comparing it
+      against a complete quarter and reporting the difference as growth is misleading.
+
+      Two behaviours are correct here and the agent has produced both across runs: refusing
+      outright, and answering while stating that Q4 is truncated. Only silently comparing is
+      wrong. The assertion was widened to match, rather than pinned to whichever the agent
+      happened to do on the day.

@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/
+!data/.gitkeep
+ui/node_modules/
+ui/dist/
+.pytest_cache/
+.ruff_cache/
+*.duckdb
+*.sqlite
+
+# The development dataset is ~79 MB and is published by UCI. Fetch it rather than vendor it.
+online_retail_clean.csv
+samples/online_retail*.csv
+
+# Local agent tooling, not part of this project
+.agents/
+.claude/
+skills-lock.json

@@ -1,0 +1,192 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 760" width="1180" height="760" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="3.2" orient="auto">
+      <path d="M0,0 L8,3.2 L0,6.4 z" fill="#7c8798"/>
+    </marker>
+    <marker id="ag" markerWidth="9" markerHeight="9" refX="8" refY="3.2" orient="auto">
+      <path d="M0,0 L8,3.2 L0,6.4 z" fill="#2f9e5f"/>
+    </marker>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="3.2" orient="auto">
+      <path d="M0,0 L8,3.2 L0,6.4 z" fill="#c9552f"/>
+    </marker>
+    <style>
+      .box{fill:#fff;stroke:#c8d0dc;stroke-width:1.4;rx:8}
+      .zone{fill:#f7f9fc;stroke:#dde4ee;stroke-width:1.2;rx:10}
+      .zt{font-size:11px;fill:#8a93a3;letter-spacing:.09em;font-weight:600}
+      .t{font-size:13px;fill:#1c2430;font-weight:600}
+      .s{font-size:11px;fill:#69748a}
+      .m{font-size:10.5px;fill:#69748a;font-family:ui-monospace,Menlo,monospace}
+      .e{stroke:#7c8798;stroke-width:1.4;fill:none;marker-end:url(#a)}
+      .eg{stroke:#2f9e5f;stroke-width:1.6;fill:none;marker-end:url(#ag)}
+      .er{stroke:#c9552f;stroke-width:1.6;fill:none;marker-end:url(#ar);stroke-dasharray:5 3}
+      .el{font-size:10px;fill:#69748a}
+      .elg{font-size:10px;fill:#2f9e5f;font-weight:600}
+      .elr{font-size:10px;fill:#c9552f;font-weight:600}
+      .guard{fill:#fdf4f0;stroke:#e0a68c;stroke-width:1.6;rx:8}
+      .store{fill:#f2f7fd;stroke:#a9c6e8;stroke-width:1.4;rx:8}
+      .agentzone{fill:#f4fbf6;stroke:#bfe0cb;stroke-width:1.2;rx:10}
+    </style>
+  </defs>
+
+  <text x="24" y="30" font-size="17" font-weight="700" fill="#1c2430">Natural Language Insights Engine</text>
+  <text x="24" y="49" class="s">Plain English in. An answer with the SQL that produced it, or a refusal that says what is missing.</text>
+
+  <!-- CLIENT -->
+  <rect class="zone" x="24" y="70" width="250" height="200"/>
+  <text x="40" y="92" class="zt">BROWSER</text>
+  <rect class="box" x="40" y="104" width="218" height="66"/>
+  <text x="54" y="126" class="t">React UI</text>
+  <text x="54" y="143" class="s">Chat, schema panel, chart</text>
+  <text x="54" y="159" class="s">Query trail always visible</text>
+  <rect class="box" x="40" y="182" width="218" height="72"/>
+  <text x="54" y="204" class="t">Live progress</text>
+  <text x="54" y="221" class="m">EventSource → /jobs/:id/events</text>
+  <text x="54" y="240" class="s">Stages emitted by the running tool</text>
+
+  <!-- API -->
+  <rect class="zone" x="300" y="70" width="270" height="290"/>
+  <text x="316" y="92" class="zt">HTTP SERVICE · FastAPI</text>
+  <rect class="box" x="316" y="104" width="238" height="96"/>
+  <text x="330" y="126" class="t">Endpoints</text>
+  <text x="330" y="144" class="m">POST /api/datasets → 202</text>
+  <text x="330" y="160" class="m">POST /api/query    → 202</text>
+  <text x="330" y="176" class="m">GET  /api/jobs/:id</text>
+  <text x="330" y="192" class="m">GET  /api/jobs/:id/events</text>
+  <rect class="box" x="316" y="212" width="238" height="62"/>
+  <text x="330" y="234" class="t">Validation &amp; errors</text>
+  <text x="330" y="251" class="s">Pydantic in, typed envelope out</text>
+  <text x="330" y="267" class="s">No stack trace ever leaves</text>
+  <rect class="box" x="316" y="286" width="238" height="60"/>
+  <text x="330" y="308" class="t">Answer cache</text>
+  <text x="330" y="325" class="s">dataset + normalised question</text>
+  <text x="330" y="340" class="s">Hit returns 200 inline</text>
+
+  <!-- JOBS -->
+  <rect class="zone" x="300" y="384" width="270" height="176"/>
+  <text x="316" y="406" class="zt">JOB MANAGER</text>
+  <rect class="box" x="316" y="418" width="238" height="60"/>
+  <text x="330" y="440" class="t">Bounded worker pool</text>
+  <text x="330" y="457" class="s">Semaphore; excess waits, none dropped</text>
+  <text x="330" y="472" class="s">Bounded event queue per job</text>
+  <rect class="box" x="316" y="490" width="238" height="58"/>
+  <text x="330" y="512" class="t">Durable state · SQLite</text>
+  <text x="330" y="529" class="s">Restart marks in-flight jobs</text>
+  <text x="330" y="544" class="s">interrupted; ingest is idempotent</text>
+
+  <!-- AGENT -->
+  <rect class="agentzone" x="600" y="70" width="304" height="490"/>
+  <text x="616" y="92" class="zt">AGENT · LangChain create_agent</text>
+
+  <rect class="box" x="616" y="104" width="272" height="76"/>
+  <text x="630" y="126" class="t">Schema injection</text>
+  <text x="630" y="143" class="s">before every model turn</text>
+  <text x="630" y="160" class="s">Every column name and type listed,</text>
+  <text x="630" y="175" class="s">so nothing is ever invented</text>
+
+  <rect class="box" x="616" y="192" width="272" height="96"/>
+  <text x="630" y="214" class="t">ReAct loop</text>
+  <text x="630" y="233" class="s">Look before you write. Iterate on a</text>
+  <text x="630" y="248" class="s">result that looks wrong, not only on</text>
+  <text x="630" y="263" class="s">a result that errored.</text>
+  <text x="630" y="281" class="m">capped: run_sql calls, model calls</text>
+
+  <rect class="box" x="616" y="300" width="272" height="106"/>
+  <text x="630" y="322" class="t">Three tools</text>
+  <text x="630" y="341" class="m">run_sql(sql, purpose)</text>
+  <text x="630" y="358" class="m">describe_columns(columns)</text>
+  <text x="630" y="375" class="m">refuse(reason, missing)</text>
+  <text x="630" y="396" class="s">dataset_id comes from context, never the model</text>
+
+  <rect class="guard" x="616" y="418" width="272" height="60"/>
+  <text x="630" y="440" class="t">Grounding interlock</text>
+  <text x="630" y="457" class="s">No successful query and no refusal</text>
+  <text x="630" y="472" class="s">means no answer. Counted from tool results.</text>
+
+  <rect class="box" x="616" y="490" width="272" height="58"/>
+  <text x="630" y="512" class="t">Structured response</text>
+  <text x="630" y="529" class="s">answer · assumptions · chart</text>
+  <text x="630" y="544" class="s">confidence · refusal · clarification</text>
+
+  <!-- DATA -->
+  <rect class="zone" x="934" y="70" width="222" height="490"/>
+  <text x="950" y="92" class="zt">DATA</text>
+
+  <rect class="guard" x="950" y="104" width="190" height="118"/>
+  <text x="964" y="126" class="t">SQL guard</text>
+  <text x="964" y="145" class="s">1 read-only connection</text>
+  <text x="964" y="161" class="s">2 single SELECT only</text>
+  <text x="964" y="177" class="s">3 no file functions</text>
+  <text x="964" y="193" class="s">4 row limit injected</text>
+  <text x="964" y="209" class="s">5 wall-clock timeout</text>
+
+  <rect class="store" x="950" y="236" width="190" height="86"/>
+  <text x="964" y="258" class="t">DuckDB</text>
+  <text x="964" y="276" class="s">One file per dataset,</text>
+  <text x="964" y="292" class="s">so ingest never contends</text>
+  <text x="964" y="308" class="s">with a running query</text>
+
+  <rect class="store" x="950" y="336" width="190" height="102"/>
+  <text x="964" y="358" class="t">Profile · layer 1</text>
+  <text x="964" y="376" class="s">Exact statistics from SQL</text>
+  <text x="964" y="392" class="s">types · distinct · nulls</text>
+  <text x="964" y="408" class="s">min/max · top values</text>
+  <text x="964" y="424" class="s">negatives · samples</text>
+
+  <rect class="store" x="950" y="452" width="190" height="96"/>
+  <text x="964" y="474" class="t">Profile · layer 2</text>
+  <text x="964" y="492" class="s">One model call at ingest</text>
+  <text x="964" y="508" class="s">roles · revenue expression</text>
+  <text x="964" y="524" class="s">returns · grain · entities</text>
+  <text x="964" y="540" class="s">User-correctable in the UI</text>
+
+  <!-- edges -->
+  <path class="e" d="M258 132 L310 132"/>
+  <text x="262" y="126" class="el">ask</text>
+  <path class="e" d="M310 214 L262 214"/>
+  <text x="266" y="208" class="el">202 job id</text>
+  <path class="e" d="M316 330 L262 240" />
+  <text x="252" y="290" class="el">SSE stages</text>
+
+  <path class="e" d="M435 350 L435 412"/>
+  <text x="440" y="382" class="el">submit</text>
+  <path class="e" d="M560 448 L612 300"/>
+  <text x="548" y="392" class="el">run</text>
+
+  <path class="eg" d="M888 348 L946 296"/>
+  <text x="836" y="330" class="elg">run_sql</text>
+  <path class="eg" d="M888 330 L946 160"/>
+  <text x="862" y="250" class="elg">via guard</text>
+  <path class="e" d="M946 388 L892 200"/>
+  <text x="898" y="300" class="el">profile</text>
+
+  <path class="er" d="M700 490 L700 466"/>
+  <text x="706" y="484" class="elr">blocked unless grounded</text>
+
+  <path class="e" d="M700 180 L700 190"/>
+  <path class="e" d="M700 288 L700 298"/>
+  <path class="e" d="M700 406 L700 416"/>
+
+  <!-- ingest lane -->
+  <rect class="zone" x="24" y="300" width="250" height="260"/>
+  <text x="40" y="322" class="zt">INGEST · repeatable step</text>
+  <rect class="box" x="40" y="334" width="218" height="72"/>
+  <text x="54" y="356" class="t">Read the CSV</text>
+  <text x="54" y="373" class="s">Delimiter sniffed. On failure:</text>
+  <text x="54" y="389" class="s">latin-1, then all-varchar</text>
+  <rect class="box" x="40" y="418" width="218" height="66"/>
+  <text x="54" y="440" class="t">Normalise columns</text>
+  <text x="54" y="457" class="s">Safe identifiers, duplicates split,</text>
+  <text x="54" y="473" class="s">originals kept in the profile</text>
+  <rect class="box" x="40" y="496" width="218" height="52"/>
+  <text x="54" y="518" class="t">Identity = content hash</text>
+  <text x="54" y="535" class="s">A retried job converges</text>
+  <path class="e" d="M258 462 L310 462"/>
+  <text x="262" y="456" class="el">as a job</text>
+
+  <text x="24" y="600" class="s"><tspan font-weight="600" fill="#2f9e5f">Green</tspan> is the only path from the model to the data. There is no second door, which is what makes the guard enforcement rather than advice.</text>
+  <text x="24" y="622" class="s"><tspan font-weight="600" fill="#c9552f">Red dashed</tspan> is the grounding interlock: a final answer is rejected unless a query succeeded in this run, or the agent explicitly refused.</text>
+  <text x="24" y="644" class="s">Every long operation is a job. Submit, get an id, poll or stream, retrieve. Nothing blocks the caller.</text>
+  <text x="24" y="666" class="s">Statistics are measured; meaning is inferred once at ingest and shown to the user, who can correct it.</text>
+
+  <text x="24" y="712" class="m" fill="#8a93a3">FastAPI · LangChain 1.4 · LangGraph 1.2 · DuckDB · SQLite · React</text>
+</svg>

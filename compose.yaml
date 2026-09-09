@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?set GEMINI_API_KEY in your .env}
+      LLM_MODEL: ${LLM_MODEL:-google_genai:gemini-3.8-flash}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-google_genai:gemini-2.5-flash}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-nl-insights-engine}
+      JOB_CONCURRENCY: ${JOB_CONCURRENCY:-4}
+      DATA_DIR: /srv/data
+    volumes:
+      - insights-data:/srv/data
+volumes:
+  insights-data:

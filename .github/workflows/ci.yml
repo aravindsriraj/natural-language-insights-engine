@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_eval:
+        description: "Also run the live evaluation set (needs GEMINI_API_KEY)"
+        type: boolean
+        default: false
+
+jobs:
+  python:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with: { enable-cache: true }
+      - run: uv python install 3.13
+      - run: uv venv -p 3.13 .venv
+      - run: uv pip install -e ".[dev]"
+        env: { VIRTUAL_ENV: .venv }
+      - name: Lint
+        run: .venv/bin/ruff check app tests eval scripts
+      - name: Test
+        # No model key is set, so the suite must be hermetic. That is deliberate:
+        # a test that needs a network call is a test that fails on someone else's machine.
+        run: .venv/bin/pytest -q
+
+  ui:
+    name: Build UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: ui/package-lock.json }
+      - run: npm install --no-audit --no-fund
+        working-directory: ui
+      - run: npm run build
+        working-directory: ui
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t nl-insights-engine:ci .
+
+  evaluation:
+    name: Live evaluation
+    if: github.event_name == 'workflow_dispatch' && inputs.run_eval
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv venv -p 3.13 .venv && uv pip install -e ".[dev]"
+        env: { VIRTUAL_ENV: .venv }
+      - name: Start the server
+        run: |
+          .venv/bin/uvicorn app.api.main:app --port 8000 &
+          for i in $(seq 1 30); do curl -sf localhost:8000/health && break; sleep 1; done
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - run: .venv/bin/python scripts/seed.py samples/plant_hire.csv
+      - run: .venv/bin/python eval/run_eval.py --json eval-results.json
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: eval-results, path: eval-results.json }
