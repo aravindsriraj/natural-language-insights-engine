@@ -110,6 +110,77 @@ Errors are always shaped the same way, and never contain a stack trace:
 
 ---
 
+## How it works
+
+Two flows. Loading a file happens once. Asking a question happens every time.
+
+### Loading a file
+
+```mermaid
+flowchart LR
+    CSV["Any transactional CSV<br/>schema unknown to us"]
+    LOAD["Ingest<br/>sniffs delimiter and encoding<br/>makes column names safe"]
+    DB[("DuckDB<br/>one file per dataset")]
+    S1["Statistics<br/>exact counts, ranges, top values<br/>pure SQL, no model"]
+    S2["Meaning<br/>roles, revenue, returns, grain<br/>one model call, once per file"]
+    P[/"Schema profile<br/>rendered in the UI, correctable"/]
+
+    CSV --> LOAD
+    LOAD --> DB
+    LOAD --> S1 --> S2 --> P
+
+    classDef data fill:#e8f1fc,stroke:#5b87c4,color:#12243a
+    classDef model fill:#e9f7ee,stroke:#2f9e5f,color:#0f2e1c
+    class DB,S1,P data
+    class S2 model
+```
+
+Statistics are measured and meaning is inferred, and the two are kept apart on purpose. The
+statistics are exact and cost nothing to trust. The meaning is one judgment, made once so
+that every later question shares it, and shown to you so a wrong call is visible rather than
+silent. Without an API key the profile keeps its statistics and the system still works.
+
+### Answering a question
+
+```mermaid
+flowchart LR
+    Q["Question in<br/>plain English"]
+    API["HTTP API<br/>validates, hands back<br/>a job id straight away"]
+    AGENT["ReAct agent<br/>looks at the data<br/>before it answers"]
+    P[/"Schema profile"/]
+    GUARD["SQL guard<br/>read-only connection<br/>one SELECT · row cap · timeout"]
+    DB[("DuckDB")]
+    GATE{"Did a query succeed,<br/>or did it refuse?"}
+    OUT["Answer<br/>with every query that produced it,<br/>the assumptions, and a confidence"]
+
+    Q --> API --> AGENT
+    P -. "in front of the model every turn" .-> AGENT
+    AGENT -- "run_sql · the only door to the data" --> GUARD --> DB
+    DB -- "rows, or an error it can correct" --> AGENT
+    AGENT --> GATE
+    GATE -- "neither · sent back to work" --> AGENT
+    GATE -- "yes" --> OUT
+
+    classDef data fill:#e8f1fc,stroke:#5b87c4,color:#12243a
+    classDef safe fill:#fdece4,stroke:#c9552f,color:#3a1a10
+    classDef model fill:#e9f7ee,stroke:#2f9e5f,color:#0f2e1c
+    class DB,P data
+    class GUARD,GATE safe
+    class AGENT model
+```
+
+The two loops are the whole design. The agent can query, read the result, and query again,
+which is what lets it work on a file it has never seen. And it cannot leave the loop with an
+answer unless a query actually succeeded or it explicitly refused.
+
+The agent has two other tools not drawn here, because they do not touch the database.
+`describe_columns` serves the cached statistics at no query cost, and `refuse` declines the
+question as a structured, logged action.
+
+[The full architecture and the reasoning behind it →](DESIGN.md)
+
+---
+
 ## What it does about being wrong
 
 **It shows its working.** Every answer carries the queries that produced it, their row
