@@ -252,12 +252,35 @@ results rather than model claims.
 counts and timings, and the assumptions the agent made. A merchandiser who can read the query
 can challenge it. This is the difference between an answer and a claim.
 
-**The evaluation set.** Twenty questions in `eval/questions.yaml`, seven of which must be
-refused. Expected values were computed directly with DuckDB and the derivation is recorded
+**The evaluation set.** Twenty-one questions in `eval/questions.yaml`, seven of which must be
+refused and one of which must name a gap in the data rather than reason across it. Expected values were computed directly with DuckDB and the derivation is recorded
 alongside each question. Assertions compare *values* with a tolerance, never SQL text: the
 agent writes a different but equivalent query every run, so pinning the query would test the
 wrong thing. Tolerances are wide where a measure is genuinely ambiguous and tight where it is
 not. `make eval` exits non-zero on regression.
+
+### What the evaluation set actually caught
+
+Two findings, both from questions that failed, and both worth more than the ones that passed.
+
+**The agent was right and the question was wrong.** `country_growth` originally asked for
+growth between the third and fourth quarter of 2011. The agent refused, because the data
+stops on 30 November and 2011-Q4 is two thirds of a quarter. Comparing it against a complete
+quarter and reporting the difference as growth is a confidently wrong answer. The question
+was rewritten to compare two complete quarters, and the original became a separate test.
+
+**That separate test then exposed real flakiness.** Across three runs the agent refused
+once, answered with the truncation flagged once, and answered without mentioning it once.
+The third is a genuine failure: a plausible number a merchandiser would act on. Two changes
+fixed it. The compact profile now carries the time column's actual range rather than only
+its name, so judging coverage costs no tool call. And the prompt now separates three cases
+by name: fully covered, not covered, and partially covered, with the last requiring the
+truncation to be stated in the answer and in the assumptions. Three consecutive runs after
+the change flagged it every time.
+
+The assertion was also widened. Refusing and answering-with-the-caveat are both correct;
+only silently comparing is wrong. Pinning the test to whichever behaviour appeared on the
+day would have tested the wrong thing.
 
 **The test suite** covers what would be frightening to change: the profiler against hostile
 CSVs (semicolon delimited, latin-1, duplicate headers, header-only, single-row, all-null

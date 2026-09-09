@@ -44,6 +44,11 @@ make seed
 
 Then open http://localhost:8000, pick a dataset, and ask something.
 
+`samples/plant_hire.csv` ships with the repo. The UCI Online Retail file is about 79 MB and
+is published separately, so it is not vendored here. Drop it in the project root as
+`online_retail_clean.csv` and `make seed` will pick it up, or upload any CSV of your own
+through the UI. Nothing in the code depends on either file.
+
 ### Or with Docker
 
 ```bash
@@ -116,8 +121,9 @@ query actually succeeded in that run, or the agent explicitly refused. This is e
 code and counted from tool results, not asked for in a prompt.
 
 **Refusing is a real action.** `refuse` is a tool the agent calls, so a refusal is
-structured, logged, and testable. Eight of the twenty-one evaluation questions pass only by
-being refused.
+structured, logged, and testable. Seven of the twenty-one evaluation questions pass only by
+being refused, and one more passes only by naming a limitation in the data it was asked to
+reason across.
 
 **SQL cannot escape the dataset.** Queries run on a read-only connection, which is the
 enforcement, behind parse checks that reject writes, stacked statements, file-reading

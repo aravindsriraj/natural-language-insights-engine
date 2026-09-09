@@ -318,7 +318,11 @@ def render_compact(profile: dict, meta: dict) -> str:
         if sem.get("revenue_expression"):
             lines.append(f"  Monetary value per row: {sem['revenue_expression']}")
         if sem.get("time_column"):
-            lines.append(f"  Time column: {sem['time_column']}")
+            col = next((c for c in profile["columns"] if c["name"] == sem["time_column"]), None)
+            span = f" spanning {col['min']} to {col['max']}" if col and col.get("min") else ""
+            lines.append(f"  Time column: {sem['time_column']}{span}")
+            if span:
+                lines.append("  Check this range covers any period asked about before answering.")
         if sem.get("entity_columns"):
             ents = ", ".join(f"{k}={v}" for k, v in sem["entity_columns"].items())
             lines.append(f"  Entities: {ents}")
