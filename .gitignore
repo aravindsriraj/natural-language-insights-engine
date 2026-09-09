@@ -19,3 +19,6 @@ samples/online_retail*.csv
 .agents/
 .claude/
 skills-lock.json
+
+# The assignment brief. Kept locally, not published.
+Forward Deployed Engineer - Assignment.md
