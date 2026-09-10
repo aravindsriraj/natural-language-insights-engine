@@ -69,17 +69,18 @@ class JobManager:
         self._sem = asyncio.Semaphore(self.concurrency)
         self._queues: dict[str, asyncio.Queue] = {}
         self._tasks: set[asyncio.Task] = set()
-        self._lock = asyncio.Lock()
 
     # ------------------------------------------------------------------ storage
     def _conn(self) -> sqlite3.Connection:
         con = sqlite3.connect(self.db_path, timeout=10)
         con.row_factory = sqlite3.Row
-        con.execute("PRAGMA journal_mode=WAL")
         return con
 
     def setup(self) -> None:
         with self._conn() as con:
+            # WAL is a persistent property of the database file, so it is set once here
+            # rather than on every connection.
+            con.execute("PRAGMA journal_mode=WAL")
             con.executescript(_SCHEMA)
 
     def recover(self) -> int:
@@ -136,14 +137,15 @@ class JobManager:
             con.execute(f"UPDATE jobs SET {cols} WHERE id=?", (*fields.values(), job_id))
 
     # ------------------------------------------------------------------ events
-    async def _queue(self, job_id: str) -> asyncio.Queue:
-        async with self._lock:
-            if job_id not in self._queues:
-                self._queues[job_id] = asyncio.Queue(maxsize=256)
-            return self._queues[job_id]
+    def _queue(self, job_id: str) -> asyncio.Queue:
+        # No lock: the event loop is single threaded and there is no await between the
+        # check and the insert, so this cannot interleave with another caller.
+        if job_id not in self._queues:
+            self._queues[job_id] = asyncio.Queue(maxsize=256)
+        return self._queues[job_id]
 
     async def emit(self, job_id: str, event: dict) -> None:
-        q = await self._queue(job_id)
+        q = self._queue(job_id)
         try:
             q.put_nowait(event)
         except asyncio.QueueFull:
@@ -155,10 +157,15 @@ class JobManager:
             except (asyncio.QueueEmpty, asyncio.QueueFull):
                 pass
 
-    async def events(self, job_id: str, *, poll_s: float = 0.25):
-        """Yield events until the job reaches a terminal state."""
+    async def events(self, job_id: str, *, poll_s: float = 1.0):
+        """Yield events until the job reaches a terminal state.
+
+        Events arrive through the queue with no delay. `poll_s` only governs how often we
+        fall back to the database, which matters solely when a job dies without emitting a
+        terminal event, so it is deliberately not tuned for latency.
+        """
         job = self.get(job_id)
-        q = await self._queue(job_id)
+        q = self._queue(job_id)
         if job["status"] in TERMINAL:
             yield {"type": "status", "status": job["status"], "job": job}
             return
@@ -179,8 +186,7 @@ class JobManager:
 
     async def _cleanup(self, job_id: str) -> None:
         await asyncio.sleep(30)  # let a late SSE consumer drain
-        async with self._lock:
-            self._queues.pop(job_id, None)
+        self._queues.pop(job_id, None)
 
     # ------------------------------------------------------------------ execution
     def submit(
