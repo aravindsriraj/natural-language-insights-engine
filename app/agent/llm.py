@@ -16,7 +16,15 @@ def get_model(model: str | None = None):
             "No model API key configured. Set GEMINI_API_KEY in your environment or .env."
         )
     s = settings()
-    kwargs = {"temperature": 0}
+    kwargs = {
+        "temperature": 0,
+        # A request that never returns would otherwise occupy a worker slot forever.
+        "timeout": s.llm_timeout_s,
+        # The provider SDK retries on its own. Left at its default that stacks underneath
+        # ModelRetryMiddleware, giving up to fourteen attempts per call with backoff the
+        # middleware cannot see. Retry policy belongs in one place, so this layer is off.
+        "max_retries": 0,
+    }
     if s.llm_reasoning_effort:
         kwargs["reasoning_effort"] = s.llm_reasoning_effort
     return init_chat_model(model or s.llm_model, **kwargs)

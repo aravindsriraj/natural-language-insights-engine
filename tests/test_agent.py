@@ -204,3 +204,24 @@ def test_tool_error_message_names_the_type_not_the_detail(monkeypatch):
     out = mw.on_error(RuntimeError("/srv/data/secret.json is unreadable"), request)
     assert "RuntimeError" in out
     assert "secret.json" not in out
+
+
+# ------------------------------------------------------------------ wall-clock bounds
+
+def test_model_calls_are_bounded_in_time_and_retry_only_once(monkeypatch):
+    """Every other limit counts things. These are the only two that watch a clock.
+
+    The provider SDK retries by default, underneath ModelRetryMiddleware. Left on, one
+    model call could make fourteen attempts with backoff the middleware cannot see, which
+    is how a request stalls for minutes with nothing to stop it.
+    """
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key-not-used")
+    from app.agent.llm import get_model
+    from app.config import settings
+
+    get_model.cache_clear()
+    settings.cache_clear()
+    model = get_model()
+    assert model.timeout, "a model call with no timeout can hang a worker slot forever"
+    assert model.max_retries == 0, "retry policy must live in one place, not two"
+    get_model.cache_clear()

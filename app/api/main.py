@@ -25,7 +25,7 @@ from app.config import llm_configured, settings
 from app.core import ingest as ing
 from app.core.jobs import JobManager
 from app.core.profile import build_profile, get_profile, set_column_role
-from app.errors import AppError, BadRequest, NotFound, PayloadTooLarge
+from app.errors import AppError, BadRequest, NotFound, PayloadTooLarge, QueryTimeout
 
 jobs = JobManager()
 UI_DIST = Path(__file__).resolve().parent.parent.parent / "ui" / "dist"
@@ -213,11 +213,23 @@ async def ask(body: QueryRequest):
         from app.agent.run import answer_question
 
         await emit({"type": "stage", "stage": "thinking", "message": "Reading the schema"})
-        async with AsyncSqliteSaver.from_conn_string(str(settings().checkpoints_db)) as saver:
-            result = await answer_question(
-                body.dataset_id, body.question,
-                thread_id=thread_id, checkpointer=saver, on_event=emit,
-            )
+        cap = settings().question_timeout_s
+        try:
+            async with AsyncSqliteSaver.from_conn_string(str(settings().checkpoints_db)) as saver:
+                result = await asyncio.wait_for(
+                    answer_question(
+                        body.dataset_id, body.question,
+                        thread_id=thread_id, checkpointer=saver, on_event=emit,
+                    ),
+                    timeout=cap,
+                )
+        except TimeoutError as exc:
+            # The per-request timeout should catch a hung provider long before this. This
+            # is the backstop that stops one question holding a worker slot indefinitely.
+            raise QueryTimeout(
+                f"The question was still running after {cap}s and was stopped. "
+                "Try narrowing it, or ask again."
+            ) from exc
         result["thread_id"] = thread_id
         return result
 

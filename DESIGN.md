@@ -73,6 +73,8 @@ sent events to the browser, the query trail returned by the API, and stage label
 | Ambiguous question | `clarification` on the response | The answer, plus the question back |
 | Data cannot answer | `refuse` tool, terminal | An explicit refusal and what is missing |
 | Agent will not converge | Tool and model call limits | A partial answer or a refusal |
+| Provider hangs on one request | `LLM_TIMEOUT_S` on the model client | Nothing; the middleware retries |
+| A question runs away entirely | `QUESTION_TIMEOUT_S` around the run | `504` with a readable message |
 | Unexpected exception | Logged with a trace, opaque reference returned | `500` and a reference to quote |
 | Process death mid-job | Startup marks the job `interrupted` | A job that says so, not a hang |
 
@@ -223,6 +225,14 @@ whether it finished. Ingest is idempotent, so resubmitting is safe. A failed ing
 its half-written database file rather than leaving a dataset that half exists. Event queues
 are bounded: a slow or vanished browser drops progress events rather than stalling the job,
 and the terminal state is always readable from the database.
+
+**Time, not just counts.** Every other limit bounds a count: model calls, tool calls,
+retries, recursion depth. Counts alone do not stop a provider that accepts a request and
+never answers, which was observed once as a question stalling for three minutes. Two clocks
+close that: a per-request timeout on the model client, and a cap around the whole question
+so one bad run cannot hold a worker slot. The provider SDK's own retry is switched off,
+because stacked under the retry middleware it allowed fourteen attempts for a single call
+with backoff the middleware could not see.
 
 **What is not covered.** A single process is a single point of failure. Nothing resumes an
 interrupted question automatically. Both are addressed in section 7.

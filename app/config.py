@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     job_concurrency: int = 4
     agent_max_sql_calls: int = 6
     agent_max_model_calls: int = 16
+    # Every other limit is a count. These two are the only clocks, and without them a
+    # hung provider request has nothing to stop it.
+    llm_timeout_s: int = 90
+    question_timeout_s: int = 420
 
     @property
     def datasets_dir(self) -> Path:

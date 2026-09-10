@@ -264,6 +264,8 @@ Everything is environment driven. See `.env.example`.
 | `QUERY_TIMEOUT_S` | `30` | Wall-clock cap per query |
 | `AGENT_MAX_SQL_CALLS` | `6` | Queries per question |
 | `AGENT_MAX_MODEL_CALLS` | `16` | Model turns per question |
+| `LLM_TIMEOUT_S` | `90` | Wall clock for one model call |
+| `QUESTION_TIMEOUT_S` | `420` | Wall clock for a whole question |
 | `MAX_UPLOAD_MB` | `512` | Upload size limit |
 | `LANGSMITH_TRACING` | `false` | Set with `LANGSMITH_API_KEY` for traces |
 
