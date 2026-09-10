@@ -242,6 +242,79 @@ class JobManager:
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
 
+    # ------------------------------------------------------------------ threads
+    # Threads are derived from the jobs table rather than stored separately. Every question
+    # is already a job row carrying its thread id, its text and its answer, so the jobs
+    # table is the conversation log. A second table would be duplicate state to keep in
+    # sync, and could disagree with the log it was copied from.
+
+    def list_threads(self, dataset_id: str | None = None, limit: int = 100) -> list[dict]:
+        where = "kind='query' AND json_extract(payload,'$.thread_id') IS NOT NULL"
+        params: list[Any] = []
+        if dataset_id:
+            where += " AND dataset_id = ?"
+            params.append(dataset_id)
+        with self._conn() as con:
+            rows = con.execute(
+                f"""
+                SELECT json_extract(j.payload,'$.thread_id') AS thread_id,
+                       j.dataset_id,
+                       count(*)            AS message_count,
+                       min(j.created_at)   AS created_at,
+                       max(j.created_at)   AS updated_at,
+                       sum(j.status = 'failed') AS failed_count,
+                       (
+                         SELECT json_extract(f.payload,'$.question') FROM jobs f
+                         WHERE f.kind='query'
+                           AND json_extract(f.payload,'$.thread_id')
+                               = json_extract(j.payload,'$.thread_id')
+                         ORDER BY f.created_at ASC, f.rowid ASC LIMIT 1
+                       ) AS title
+                FROM jobs j
+                WHERE {where}
+                GROUP BY thread_id, j.dataset_id
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                (*params, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def thread_turns(self, thread_id: str) -> list[dict]:
+        """Every question in a thread, oldest first, with its answer if it produced one."""
+        with self._conn() as con:
+            rows = con.execute(
+                """
+                SELECT id, status, payload, result, error, created_at
+                FROM jobs
+                WHERE kind='query' AND json_extract(payload,'$.thread_id') = ?
+                ORDER BY created_at ASC, rowid ASC
+                """,
+                (thread_id,),
+            ).fetchall()
+        turns = []
+        for r in rows:
+            payload = json.loads(r["payload"]) if r["payload"] else {}
+            turns.append({
+                "job_id": r["id"],
+                "status": r["status"],
+                "question": payload.get("question"),
+                "created_at": r["created_at"],
+                "answer": json.loads(r["result"]) if r["result"] else None,
+                "error": json.loads(r["error"]) if r["error"] else None,
+            })
+        return turns
+
+    def delete_thread(self, thread_id: str) -> int:
+        """Forget a conversation. The checkpointer's copy is removed by the caller."""
+        with self._conn() as con:
+            cur = con.execute(
+                "DELETE FROM jobs WHERE kind='query' "
+                "AND json_extract(payload,'$.thread_id') = ?",
+                (thread_id,),
+            )
+            return cur.rowcount
+
     # ------------------------------------------------------------------ answer cache
     @staticmethod
     def cache_key(dataset_id: str, question: str) -> str:

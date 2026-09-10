@@ -213,8 +213,10 @@ async def ask(body: QueryRequest):
 
     if body.use_cache and not is_followup:
         if (hit := jobs.cache_get(body.dataset_id, body.question)) is not None:
-            job_id = jobs.create("query", dataset_id=body.dataset_id,
-                                 payload={"question": body.question, "cached": True})
+            job_id = jobs.create(
+                "query", dataset_id=body.dataset_id,
+                payload={"question": body.question, "thread_id": thread_id, "cached": True},
+            )
             hit = {**hit, "cached": True, "thread_id": thread_id}
             jobs._update(job_id, status="succeeded", stage="done",
                          result=json.dumps(hit, default=str),
@@ -246,6 +248,41 @@ async def ask(body: QueryRequest):
 @app.delete("/api/cache", status_code=204, tags=["questions"])
 async def clear_cache(dataset_id: str | None = Query(None)):
     jobs.cache_clear(dataset_id)
+    return JSONResponse(status_code=204, content=None)
+
+
+# --------------------------------------------------------------------- threads
+
+@app.get("/api/threads", tags=["threads"])
+async def list_threads(dataset_id: str | None = Query(None), limit: int = Query(100, ge=1, le=500)):
+    """Conversations, most recently used first. Titled by the question that started them."""
+    return {"threads": jobs.list_threads(dataset_id, limit)}
+
+
+@app.get("/api/threads/{thread_id}", tags=["threads"])
+async def get_thread(thread_id: str):
+    """Replay a conversation: every question with the answer it produced."""
+    turns = jobs.thread_turns(thread_id)
+    if not turns:
+        raise NotFound(f"Thread '{thread_id}' not found")
+    return {"thread_id": thread_id, "turns": turns}
+
+
+@app.delete("/api/threads/{thread_id}", status_code=204, tags=["threads"])
+async def delete_thread(thread_id: str):
+    """Forget a conversation, both the visible log and the agent's memory of it."""
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+    if not jobs.thread_turns(thread_id):
+        raise NotFound(f"Thread '{thread_id}' not found")
+    jobs.delete_thread(thread_id)
+    # Without this the log would be gone but the agent would still remember the
+    # conversation the next time that id was used.
+    try:
+        async with AsyncSqliteSaver.from_conn_string(str(settings().checkpoints_db)) as saver:
+            await saver.adelete_thread(thread_id)
+    except Exception as exc:  # pragma: no cover - the visible log is already gone
+        print(f"[threads] checkpoint delete failed for {thread_id}: {exc}", flush=True)
     return JSONResponse(status_code=204, content=None)
 
 

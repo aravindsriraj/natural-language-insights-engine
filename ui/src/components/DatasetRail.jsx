@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 
-export default function DatasetRail({ datasets, activeId, onSelect, onUpload, uploading, uploadStage }) {
+export default function DatasetRail({ datasets, activeId, onSelect, onUpload, uploading, uploadStage, children }) {
   const [over, setOver] = useState(false)
   const input = useRef(null)
 
@@ -26,7 +26,7 @@ export default function DatasetRail({ datasets, activeId, onSelect, onUpload, up
       </div>
 
       <div className="head" style={{ borderTop: '1px solid var(--line)' }}><h2>Datasets</h2></div>
-      <div className="scroll">
+      <div className="scroll rail-datasets">
         {datasets.length === 0 && <div className="empty">No datasets yet.</div>}
         {datasets.map((d) => (
           <button key={d.dataset_id} className="ds" aria-current={d.dataset_id === activeId}
@@ -38,6 +38,8 @@ export default function DatasetRail({ datasets, activeId, onSelect, onUpload, up
           </button>
         ))}
       </div>
+
+      {children}
     </aside>
   )
 }

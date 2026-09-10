@@ -172,3 +172,74 @@ def test_no_stack_trace_ever_reaches_the_caller(client, monkeypatch):
     text = r.text
     assert "Traceback" not in text and "private.py" not in text
     assert r.json()["error"]["code"] == "internal_error"
+
+
+# ------------------------------------------------------------------ threads
+
+def _job_row(client, dataset_id, question, thread_id, status="succeeded", result=None):
+    """Insert a query job the way /api/query does, without needing a model."""
+    import app.api.main as main
+
+    jid = main.jobs.create("query", dataset_id=dataset_id,
+                           payload={"question": question, "thread_id": thread_id})
+    import json as _json
+    main.jobs._update(jid, status=status,
+                      result=_json.dumps(result or {"answer": f"answer to {question}"}))
+    return jid
+
+
+def test_threads_are_derived_from_the_job_log(client):
+    ds = wait(client, upload(client).json()["job_id"])["result"]["dataset_id"]
+    _job_row(client, ds, "first question", "t-alpha")
+    _job_row(client, ds, "second question", "t-alpha")
+    _job_row(client, ds, "unrelated", "t-beta")
+
+    threads = {t["thread_id"]: t for t in client.get("/api/threads").json()["threads"]}
+    assert threads["t-alpha"]["message_count"] == 2
+    assert threads["t-beta"]["message_count"] == 1
+
+
+def test_thread_title_is_the_question_that_started_it(client):
+    """Not an arbitrary row. SQLite's bare-column behaviour cannot be relied on here."""
+    ds = wait(client, upload(client).json()["job_id"])["result"]["dataset_id"]
+    _job_row(client, ds, "the opening question", "t-title")
+    _job_row(client, ds, "a later follow-up", "t-title")
+    _job_row(client, ds, "a later one still", "t-title")
+
+    t = next(t for t in client.get("/api/threads").json()["threads"] if t["thread_id"] == "t-title")
+    assert t["title"] == "the opening question"
+
+
+def test_threads_can_be_filtered_by_dataset(client):
+    a = wait(client, upload(client).json()["job_id"])["result"]["dataset_id"]
+    b = wait(client, upload(client, CSV_SIMPLE.replace("BOLT", "SCREW")).json()["job_id"])["result"]["dataset_id"]
+    _job_row(client, a, "about a", "t-a")
+    _job_row(client, b, "about b", "t-b")
+
+    got = [t["thread_id"] for t in client.get(f"/api/threads?dataset_id={a}").json()["threads"]]
+    assert got == ["t-a"]
+
+
+def test_thread_replays_in_order(client):
+    ds = wait(client, upload(client).json()["job_id"])["result"]["dataset_id"]
+    for i in range(3):
+        _job_row(client, ds, f"question {i}", "t-order")
+    turns = client.get("/api/threads/t-order").json()["turns"]
+    assert [t["question"] for t in turns] == ["question 0", "question 1", "question 2"]
+    assert turns[0]["answer"]["answer"] == "answer to question 0"
+
+
+def test_unknown_thread_is_404(client):
+    assert client.get("/api/threads/nope").status_code == 404
+    assert client.delete("/api/threads/nope").status_code == 404
+
+
+def test_deleting_a_thread_removes_its_turns(client):
+    ds = wait(client, upload(client).json()["job_id"])["result"]["dataset_id"]
+    _job_row(client, ds, "doomed", "t-del")
+    _job_row(client, ds, "survivor", "t-keep")
+
+    assert client.delete("/api/threads/t-del").status_code == 204
+    assert client.get("/api/threads/t-del").status_code == 404
+    remaining = [t["thread_id"] for t in client.get("/api/threads").json()["threads"]]
+    assert "t-del" not in remaining and "t-keep" in remaining

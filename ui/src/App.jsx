@@ -4,6 +4,7 @@ import AnswerCard from './components/AnswerCard.jsx'
 import DatasetRail from './components/DatasetRail.jsx'
 import SchemaPanel from './components/SchemaPanel.jsx'
 import Stages from './components/Stages.jsx'
+import ThreadList from './components/ThreadList.jsx'
 
 // Deliberately generic. Nothing here assumes a retail dataset, or any dataset.
 const SUGGESTIONS = [
@@ -26,7 +27,13 @@ export default function App() {
   const [uploading, setUploading] = useState(false)
   const [uploadStage, setUploadStage] = useState('')
   const [threadId, setThreadId] = useState(null)
+  const [threads, setThreads] = useState([])
   const bottom = useRef(null)
+
+  const refreshThreads = useCallback(async (datasetId) => {
+    if (!datasetId) { setThreads([]); return }
+    try { setThreads(await api.listThreads(datasetId)) } catch (e) { setError(e.message) }
+  }, [])
 
   const refresh = useCallback(async () => {
     try {
@@ -39,10 +46,11 @@ export default function App() {
   useEffect(() => { refresh().then((l) => { if (l.length && !activeId) setActiveId(l[0].dataset_id) }) }, [])
 
   useEffect(() => {
-    if (!activeId) { setDataset(null); return }
+    if (!activeId) { setDataset(null); setThreads([]); return }
     api.getDataset(activeId).then(setDataset).catch((e) => setError(e.message))
     setTurns([]); setThreadId(null); setEvents([])
-  }, [activeId])
+    refreshThreads(activeId)
+  }, [activeId, refreshThreads])
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }) }, [turns, events])
 
@@ -67,6 +75,33 @@ export default function App() {
     } catch (e) { setUploading(false); setError(e.message) }
   }
 
+  function newChat() {
+    setThreadId(null); setTurns([]); setEvents([]); setError(null)
+  }
+
+  async function openThread(id) {
+    if (busy) return
+    setError(null)
+    try {
+      const turnsFromServer = await api.getThread(id)
+      setTurns(turnsFromServer.map((t) => ({
+        question: t.question,
+        answer: t.answer,
+        error: t.error?.message,
+      })))
+      setThreadId(id)
+      setEvents([])
+    } catch (e) { setError(e.message) }
+  }
+
+  async function removeThread(id) {
+    try {
+      await api.deleteThread(id)
+      if (id === threadId) newChat()
+      await refreshThreads(activeId)
+    } catch (e) { setError(e.message) }
+  }
+
   async function submit(text) {
     const q = (text ?? question).trim()
     if (!q || !activeId || busy) return
@@ -79,6 +114,7 @@ export default function App() {
         setTurns((t) => [...t.slice(0, -1), { question: q, answer: res.result }])
         setThreadId(res.result.thread_id || threadId)
         setBusy(false)
+        refreshThreads(activeId)
         return
       }
       api.streamJob(
@@ -92,6 +128,7 @@ export default function App() {
           } else {
             setTurns((t) => [...t.slice(0, -1), { question: q, error: done.error?.message || 'The question failed.' }])
           }
+          refreshThreads(activeId)
         },
         (e) => {
           setBusy(false); setEvents([])
@@ -116,17 +153,20 @@ export default function App() {
       <DatasetRail
         datasets={datasets} activeId={activeId} onSelect={setActiveId}
         onUpload={upload} uploading={uploading} uploadStage={uploadStage}
-      />
+      >
+        {activeId && (
+          <ThreadList
+            threads={threads} activeId={threadId} busy={busy}
+            onOpen={openThread} onNew={newChat} onDelete={removeThread}
+          />
+        )}
+      </DatasetRail>
 
       <main className="col chat">
         <div className="head">
           <h2>{dataset ? dataset.meta.name : 'No dataset selected'}</h2>
           <span className="grow" />
-          {threadId && (
-            <button className="btn ghost" onClick={() => { setThreadId(null); setTurns([]) }}>
-              New conversation
-            </button>
-          )}
+          {threadId && <span className="badge">continuing a conversation</span>}
         </div>
 
         {error && <div className="err">{error}</div>}

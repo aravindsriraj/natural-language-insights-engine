@@ -37,6 +37,11 @@ export const ask = (body) =>
     body: JSON.stringify(body),
   })
 
+export const listThreads = (datasetId) =>
+  request(`/api/threads${datasetId ? `?dataset_id=${datasetId}` : ''}`).then((d) => d.threads)
+export const getThread = (id) => request(`/api/threads/${id}`).then((d) => d.turns)
+export const deleteThread = (id) => request(`/api/threads/${id}`, { method: 'DELETE' })
+
 export const clearCache = (datasetId) =>
   request(`/api/cache${datasetId ? `?dataset_id=${datasetId}` : ''}`, { method: 'DELETE' })
 
