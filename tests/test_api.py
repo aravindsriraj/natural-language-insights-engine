@@ -1,6 +1,8 @@
 """API contract: status codes and the error envelope. No LLM calls."""
 from __future__ import annotations
 
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -22,12 +24,20 @@ def upload(client, content=CSV_SIMPLE, filename="orders.csv"):
     return client.post("/api/datasets", files={"file": (filename, content.encode(), "text/csv")})
 
 
-def wait(client, job_id, tries=200):
-    for _ in range(tries):
+def wait(client, job_id, timeout=30.0):
+    """Poll until the job reaches a terminal state.
+
+    Ingest runs on a real thread, so this has to wait in wall-clock time. An earlier
+    version looped a fixed number of times with no sleep, which elapsed in milliseconds
+    and passed only because a warm local machine happened to be fast enough.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
         job = client.get(f"/api/jobs/{job_id}").json()
         if job["status"] in ("succeeded", "failed", "interrupted"):
             return job
-    raise AssertionError("job never finished")
+        time.sleep(0.05)
+    raise AssertionError(f"job {job_id} still {job['status']} after {timeout}s")
 
 
 # ------------------------------------------------------------------ health
