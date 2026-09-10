@@ -249,6 +249,7 @@ Everything is environment driven. See `.env.example`.
 | `GEMINI_API_KEY` | — | Required |
 | `LLM_MODEL` | `google_genai:gemini-3.8-flash` | Any provider string LangChain accepts |
 | `LLM_FALLBACK_MODEL` | `google_genai:gemini-2.5-flash` | Used if the primary fails |
+| `LLM_REASONING_EFFORT` | unset | `low` cuts tokens and latency sharply. See below. |
 | `JOB_CONCURRENCY` | `4` | In-flight jobs; the rest queue |
 | `MAX_RESULT_ROWS` | `1000` | Row cap per query |
 | `QUERY_TIMEOUT_S` | `30` | Wall-clock cap per query |
@@ -256,6 +257,24 @@ Everything is environment driven. See `.env.example`.
 | `AGENT_MAX_MODEL_CALLS` | `16` | Model turns per question |
 | `MAX_UPLOAD_MB` | `512` | Upload size limit |
 | `LANGSMITH_TRACING` | `false` | Set with `LANGSMITH_API_KEY` for traces |
+
+### Thinking budget
+
+The default model thinks before answering, and that thinking is most of the output token
+cost. Setting `LLM_REASONING_EFFORT=low` was measured against the full evaluation set:
+
+| | default | low |
+|---|---|---|
+| evaluation result | 21/21 | 21/21 |
+| refusals correct | 7/7 | 7/7 |
+| wall clock for the set | 296s | 171s |
+| median question | 11.1s | 6.1s |
+| tokens on a sample question | 14,835 in / 1,795 out | 5,493 in / 585 out |
+
+Accuracy held on every question, including the two that need care: the one-purchase customer
+share, and the comparison against a truncated quarter. It is left unset by default because
+21 questions is enough to show no regression, not enough to prove robustness on questions
+nobody has asked yet. Turn it on if latency or cost matters more to you than that margin.
 
 Switching provider is one line. `LLM_MODEL=anthropic:claude-sonnet-5` with the matching key
 and package works without touching any code.

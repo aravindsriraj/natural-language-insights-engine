@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     data_dir: Path = ROOT / "data"
 
     llm_model: str = "google_genai:gemini-3.8-flash"
+    # Thinking models spend output tokens before answering. Lower efforts cut both the
+    # thinking and, because the agent explores less, the number of turns. Verified against
+    # the evaluation suite rather than assumed; see README.
+    llm_reasoning_effort: str = ""
     llm_fallback_model: str = "google_genai:gemini-2.5-flash"
     gemini_api_key: str = ""
 

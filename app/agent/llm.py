@@ -15,7 +15,11 @@ def get_model(model: str | None = None):
         raise LLMUnavailable(
             "No model API key configured. Set GEMINI_API_KEY in your environment or .env."
         )
-    return init_chat_model(model or settings().llm_model, temperature=0)
+    s = settings()
+    kwargs = {"temperature": 0}
+    if s.llm_reasoning_effort:
+        kwargs["reasoning_effort"] = s.llm_reasoning_effort
+    return init_chat_model(model or s.llm_model, **kwargs)
 
 
 def fallback_models() -> list[str]:
