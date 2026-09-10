@@ -139,18 +139,3 @@ async def test_slow_consumer_does_not_block_producer(manager):
 def test_unknown_job_is_not_found(manager):
     with pytest.raises(NotFound):
         manager.get("nope")
-
-
-def test_cache_roundtrip_and_normalisation(manager):
-    manager.cache_put("ds1", "Top products?", {"answer": "a"})
-    assert manager.cache_get("ds1", "Top products?")["answer"] == "a"
-    assert manager.cache_get("ds1", "  top   PRODUCTS?  ")["answer"] == "a"
-    assert manager.cache_get("ds2", "Top products?") is None
-
-
-def test_cache_clear_is_scoped_to_one_dataset(manager):
-    manager.cache_put("ds1", "q", {"a": 1})
-    manager.cache_put("ds2", "q", {"a": 2})
-    manager.cache_clear("ds1")
-    assert manager.cache_get("ds1", "q") is None
-    assert manager.cache_get("ds2", "q") is not None

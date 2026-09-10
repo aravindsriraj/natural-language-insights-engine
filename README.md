@@ -81,9 +81,9 @@ curl -N localhost:8000/api/jobs/<job_id>/events
 curl localhost:8000/api/jobs/<job_id>
 ```
 
-A repeated question comes back from the cache as `200` with the answer inline rather than
-`202`. Pass `"use_cache": false` to force a fresh run, or `"thread_id": "<id>"` from a
-previous answer to ask a follow-up in the same conversation.
+Every question runs the agent. There is no answer cache, so asking the same thing twice
+does the work twice and you see it happen. Pass `"thread_id": "<id>"` from a previous
+answer to ask a follow-up in the same conversation.
 
 Conversations are addressable. `/api/threads` lists them, titled by the question that
 started each one, and the UI keeps them in the left rail so you can switch between several
@@ -102,13 +102,12 @@ Interactive API documentation is at `/docs`.
 | `GET` | `/api/datasets/{id}` | Full profile: statistics and inferred meaning |
 | `PATCH` | `/api/datasets/{id}/columns/{column}` | Correct an inferred column role |
 | `DELETE` | `/api/datasets/{id}` | Remove a dataset |
-| `POST` | `/api/query` | Ask a question. Returns a job, or a cached answer. |
+| `POST` | `/api/query` | Ask a question. Returns a job. |
 | `GET` | `/api/threads` | List conversations, newest first. Filter with `?dataset_id=` |
 | `GET` | `/api/threads/{id}` | Replay a conversation: every question with its answer |
 | `DELETE` | `/api/threads/{id}` | Forget a conversation, log and agent memory both |
 | `GET` | `/api/jobs/{id}` | Job status and result |
 | `GET` | `/api/jobs/{id}/events` | Server-sent progress events |
-| `DELETE` | `/api/cache` | Clear cached answers |
 | `GET` | `/health` | Readiness and configuration |
 
 Errors are always shaped the same way, and never contain a stack trace:

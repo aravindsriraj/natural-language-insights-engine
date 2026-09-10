@@ -18,7 +18,7 @@ asking and being refused, and loading a CSV the app has never seen.
 | `core/ingest.py` | CSV to table, encoding and delimiter recovery, column name normalisation, content-hash identity | Interpretation |
 | `core/profile.py` | Schema context: exact statistics, then semantic annotation | Answering questions |
 | `core/guard.py` | Deciding whether a SQL string is a bounded read | Executing anything |
-| `core/jobs.py` | Job lifecycle, concurrency, durability, progress events, the answer cache | Any domain logic |
+| `core/jobs.py` | Job lifecycle, concurrency, durability, progress events | Any domain logic |
 | `agent/tools.py` | The only paths from model to data, and the executed-query record | Deciding what to ask |
 | `agent/middleware.py` | Schema injection, the grounding interlock, usage accounting | Tool behaviour |
 | `agent/agent.py` | Assembling the agent and its limits | Individual steps |
@@ -39,9 +39,9 @@ from the agent to DuckDB, which is what makes the guard unbypassable rather than
 
 ## 2. The path a question takes
 
-1. **`POST /api/query`** validates the body, confirms the dataset exists, and checks the
-   answer cache. A cache hit returns `200` with the answer inline. Anything else is queued
-   and returns `202` with a job id.
+1. **`POST /api/query`** validates the body, confirms the dataset exists, then queues the
+   work and returns `202` with a job id. Every question runs the agent: there is no answer
+   cache, so an answer on screen was produced for that question, not replayed.
 2. **The job manager** acquires a slot from a bounded semaphore. Beyond that width, jobs wait
    in `queued` rather than being rejected.
 3. **Schema injection** puts the dataset profile in front of the model before its first
@@ -56,7 +56,7 @@ from the agent to DuckDB, which is what makes the guard unbypassable rather than
    back to work.
 7. **Structured output** produces the answer, assumptions, chart proposal and confidence.
 8. **The response is assembled** from the tool-boundary record rather than from the model's
-   account of itself, then cached and returned.
+   account of itself, and returned.
 
 Throughout, tools emit events through the stream writer. Those events do triple duty: server-
 sent events to the browser, the query trail returned by the API, and stage labels in the trace.

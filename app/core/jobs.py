@@ -48,13 +48,6 @@ CREATE TABLE IF NOT EXISTS jobs (
     finished_at  TEXT
 );
 CREATE INDEX IF NOT EXISTS jobs_created ON jobs(created_at DESC);
-CREATE TABLE IF NOT EXISTS answer_cache (
-    key         TEXT PRIMARY KEY,
-    dataset_id  TEXT NOT NULL,
-    question    TEXT NOT NULL,
-    result      TEXT NOT NULL,
-    created_at  TEXT NOT NULL
-);
 """
 
 
@@ -314,32 +307,3 @@ class JobManager:
                 (thread_id,),
             )
             return cur.rowcount
-
-    # ------------------------------------------------------------------ answer cache
-    @staticmethod
-    def cache_key(dataset_id: str, question: str) -> str:
-        return f"{dataset_id}:{' '.join(question.lower().split())}"
-
-    def cache_get(self, dataset_id: str, question: str) -> dict | None:
-        with self._conn() as con:
-            row = con.execute(
-                "SELECT result FROM answer_cache WHERE key=?",
-                (self.cache_key(dataset_id, question),),
-            ).fetchone()
-        return json.loads(row["result"]) if row else None
-
-    def cache_put(self, dataset_id: str, question: str, result: dict) -> None:
-        with self._conn() as con:
-            con.execute(
-                "INSERT OR REPLACE INTO answer_cache (key, dataset_id, question, result, created_at) "
-                "VALUES (?,?,?,?,?)",
-                (self.cache_key(dataset_id, question), dataset_id, question,
-                 json.dumps(result, default=str), _now()),
-            )
-
-    def cache_clear(self, dataset_id: str | None = None) -> None:
-        with self._conn() as con:
-            if dataset_id:
-                con.execute("DELETE FROM answer_cache WHERE dataset_id=?", (dataset_id,))
-            else:
-                con.execute("DELETE FROM answer_cache")

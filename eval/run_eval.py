@@ -130,7 +130,7 @@ def ensure_dataset(api: str, spec: dict) -> str:
 
 def ask(api: str, dataset_id: str, question: str, timeout: int) -> dict:
     r = http("POST", f"{api}/api/query",
-             {"dataset_id": dataset_id, "question": question, "use_cache": False})
+             {"dataset_id": dataset_id, "question": question})
     if "job_id" not in r:
         raise RuntimeError(r.get("error", {}).get("message", str(r)))
     if r.get("status") == "succeeded":

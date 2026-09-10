@@ -78,7 +78,6 @@ export default function AnswerCard({ answer }) {
       <div className="badges">
         <span className={`badge ${answer.confidence}`}>{answer.confidence} confidence</span>
         {refused && <span className="badge medium">refused</span>}
-        {answer.cached && <span className="badge cached">cached</span>}
         {queries.length > 0 && <span className="badge">{queries.length} quer{queries.length === 1 ? 'y' : 'ies'}</span>}
         {answer.usage?.total_tokens > 0 && (
           <span className="badge">{answer.usage.total_tokens.toLocaleString()} tokens</span>

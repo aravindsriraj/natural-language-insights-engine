@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Record the demo GIFs by driving the real UI in a browser.
 
-Answers are warmed into the cache first so the recordings stay short, which is what the
-brief asks for. The UI still goes through the same code path; it just does not wait on the
-model. Pass --cold to record a live run with the model in the loop instead.
+Every answer in these recordings is produced live. There is no cache, so what you see is
+the real wait. To keep the recordings short, run the server with LLM_REASONING_EFFORT=low,
+which is measured at roughly half the latency with no loss on the evaluation set:
 
-    python scripts/record_demo.py                 # both GIFs into docs/
+    LLM_REASONING_EFFORT=low make dev
+    python scripts/record_demo.py
 """
 from __future__ import annotations
 
@@ -14,7 +15,6 @@ import asyncio
 import io
 import json
 import sys
-import time
 import urllib.request
 from pathlib import Path
 
@@ -44,22 +44,6 @@ def http(method: str, path: str, body: dict | None = None, timeout: int = 300) -
                                  headers={"content-type": "application/json"} if data else {})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read() or b"{}")
-
-
-def warm(dataset_id: str, questions: list[str]) -> None:
-    """Answer each question once so the recording replays from cache."""
-    for q in questions:
-        r = http("POST", "/api/query", {"dataset_id": dataset_id, "question": q})
-        if r.get("status") == "succeeded":
-            print(f"    cached: {q}")
-            continue
-        job = r["job_id"]
-        while True:
-            d = http("GET", f"/api/jobs/{job}")
-            if d["status"] not in ("queued", "running"):
-                break
-            time.sleep(1)
-        print(f"    warmed: {q}  ({d['status']})")
 
 
 def find_dataset(name_part: str) -> str | None:
@@ -191,7 +175,6 @@ async def scene_second_csv(browser, hire_csv: Path) -> list[bytes]:
 
 async def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cold", action="store_true", help="Do not warm the cache first")
     ap.add_argument("--scale", type=float, default=0.6)
     args = ap.parse_args()
     DOCS.mkdir(exist_ok=True)
@@ -216,10 +199,6 @@ async def main() -> int:
     if (existing := find_dataset("plant")) is not None:
         http("DELETE", f"/api/datasets/{existing}")
         print("  removed the previously loaded second dataset")
-
-    if not args.cold:
-        print("Warming answers so the recordings stay short…")
-        warm(retail_id, RETAIL_QUESTIONS)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(args=["--force-color-profile=srgb"])

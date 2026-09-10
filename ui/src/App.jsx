@@ -110,13 +110,6 @@ export default function App() {
 
     try {
       const res = await api.ask({ dataset_id: activeId, question: q, thread_id: threadId })
-      if (res.status === 'succeeded' && res.result) {   // cache hit, answered inline
-        setTurns((t) => [...t.slice(0, -1), { question: q, answer: res.result }])
-        setThreadId(res.result.thread_id || threadId)
-        setBusy(false)
-        refreshThreads(activeId)
-        return
-      }
       api.streamJob(
         res.job_id,
         (e) => setEvents((cur) => [...cur, e]),

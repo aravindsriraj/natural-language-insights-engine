@@ -9,7 +9,6 @@ class QueryRequest(BaseModel):
     question: str = Field(min_length=3, max_length=2000)
     thread_id: str | None = Field(None, max_length=128,
                                   description="Continue an existing conversation")
-    use_cache: bool = True
 
     @field_validator("question")
     @classmethod

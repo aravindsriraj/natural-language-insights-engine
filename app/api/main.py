@@ -158,7 +158,6 @@ async def upload_dataset(file: UploadFile = File(...), name: str | None = Query(
             await emit({"type": "stage", "stage": "profiling",
                         "message": f"Profiling {meta.row_count:,} rows across {meta.column_count} columns"})
             profile = await asyncio.to_thread(lambda: build_profile(meta.dataset_id, use_model=True))
-            jobs.cache_clear(meta.dataset_id)
             return {
                 "dataset_id": meta.dataset_id,
                 "name": meta.name,
@@ -188,14 +187,12 @@ async def get_dataset(dataset_id: str = PathParam(..., min_length=1, max_length=
 async def update_column_role(dataset_id: str, column: str, body: ColumnRoleUpdate = Body(...)):
     """Correct an inferred role. Schema inference is visible and fixable, not silent."""
     profile = set_column_role(dataset_id, column, body.role, body.description)
-    jobs.cache_clear(dataset_id)
     return {"profile": profile}
 
 
 @app.delete("/api/datasets/{dataset_id}", status_code=204, tags=["datasets"])
 async def delete_dataset(dataset_id: str):
     ing.delete_dataset(dataset_id)
-    jobs.cache_clear(dataset_id)
     return JSONResponse(status_code=204, content=None)
 
 
@@ -209,20 +206,6 @@ async def ask(body: QueryRequest):
         raise AppError("No model API key is configured on the server.")
 
     thread_id = body.thread_id or uuid.uuid4().hex[:16]
-    is_followup = bool(body.thread_id)
-
-    if body.use_cache and not is_followup:
-        if (hit := jobs.cache_get(body.dataset_id, body.question)) is not None:
-            job_id = jobs.create(
-                "query", dataset_id=body.dataset_id,
-                payload={"question": body.question, "thread_id": thread_id, "cached": True},
-            )
-            hit = {**hit, "cached": True, "thread_id": thread_id}
-            jobs._update(job_id, status="succeeded", stage="done",
-                         result=json.dumps(hit, default=str),
-                         started_at=None, finished_at=None)
-            return JSONResponse(status_code=200, content={"job_id": job_id, "status": "succeeded",
-                                                          "cached": True, "result": hit})
 
     async def handler(job_id: str, emit):
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -236,19 +219,10 @@ async def ask(body: QueryRequest):
                 thread_id=thread_id, checkpointer=saver, on_event=emit,
             )
         result["thread_id"] = thread_id
-        result["cached"] = False
-        if body.use_cache and not is_followup and not result.get("refused"):
-            jobs.cache_put(body.dataset_id, body.question, result)
         return result
 
     return _accepted(jobs.submit("query", handler, dataset_id=body.dataset_id,
                                  payload={"question": body.question, "thread_id": thread_id}))
-
-
-@app.delete("/api/cache", status_code=204, tags=["questions"])
-async def clear_cache(dataset_id: str | None = Query(None)):
-    jobs.cache_clear(dataset_id)
-    return JSONResponse(status_code=204, content=None)
 
 
 # --------------------------------------------------------------------- threads
