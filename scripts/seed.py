@@ -3,10 +3,12 @@
 
     python scripts/seed.py                       # every CSV in samples/ plus the retail file
     python scripts/seed.py path/to/other.csv     # a specific file
+    INSIGHTS_API=http://host:8010 python scripts/seed.py
 """
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -14,7 +16,9 @@ import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-API = "http://localhost:8000"
+# Overridable so this matches eval/run_eval.py --api, which already supported a
+# non-default host. Hardcoding the port here was the odd one out.
+API = os.environ.get("INSIGHTS_API", "http://localhost:8000")
 
 
 def post_file(path: Path, name: str) -> dict:

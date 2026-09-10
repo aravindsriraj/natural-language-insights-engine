@@ -167,7 +167,7 @@ blocks any final answer that is not backed by a successful query or an explicit 
 **Rejected: instructing the model to refuse in the prompt.** A refusal that is merely the
 absence of an answer cannot be observed, tested, or measured. As a tool call it is structured,
 logged, visible in the trace, and directly assertable in the evaluation suite. Seven of the
-twenty evaluation questions pass only by refusing.
+twenty-one evaluation questions pass only by refusing.
 
 **Rejected: a post-hoc hallucination check.** Grading the answer after the fact is another
 model call and another thing to be wrong. The interlock is mechanical: no successful query in
