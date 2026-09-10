@@ -106,6 +106,7 @@ Interactive API documentation is at `/docs`.
 | `GET` | `/api/threads` | List conversations, newest first. Filter with `?dataset_id=` |
 | `GET` | `/api/threads/{id}` | Replay a conversation: every question with its answer |
 | `DELETE` | `/api/threads/{id}` | Forget a conversation, log and agent memory both |
+| `DELETE` | `/api/threads` | Forget every conversation. `?dataset_id=` scopes it |
 | `GET` | `/api/jobs/{id}` | Job status and result |
 | `GET` | `/api/jobs/{id}/events` | Server-sent progress events |
 | `GET` | `/health` | Readiness and configuration |
@@ -257,7 +258,7 @@ Everything is environment driven. See `.env.example`.
 | `GEMINI_API_KEY` | — | Required |
 | `LLM_MODEL` | `google_genai:gemini-3.8-flash` | Any provider string LangChain accepts |
 | `LLM_FALLBACK_MODEL` | `google_genai:gemini-2.5-flash` | Used if the primary fails |
-| `LLM_REASONING_EFFORT` | unset | `low` cuts tokens and latency sharply. See below. |
+| `LLM_REASONING_EFFORT` | `medium` | Thinking budget: `low`, `medium` or `high`. See below. |
 | `JOB_CONCURRENCY` | `4` | In-flight jobs; the rest queue |
 | `MAX_RESULT_ROWS` | `1000` | Row cap per query |
 | `QUERY_TIMEOUT_S` | `30` | Wall-clock cap per query |
@@ -268,21 +269,26 @@ Everything is environment driven. See `.env.example`.
 
 ### Thinking budget
 
-The default model thinks before answering, and that thinking is most of the output token
-cost. Setting `LLM_REASONING_EFFORT=low` was measured against the full evaluation set:
+The model thinks before answering, and that thinking is most of the output token cost. It
+also drives extra turns, because a model that deliberates more explores more.
+`LLM_REASONING_EFFORT` controls it, and the levels were measured against the full
+evaluation set rather than guessed:
 
-| | default | low |
+| | low | medium (default) |
 |---|---|---|
 | evaluation result | 21/21 | 21/21 |
 | refusals correct | 7/7 | 7/7 |
-| wall clock for the set | 296s | 171s |
-| median question | 11.1s | 6.1s |
-| tokens on a sample question | 14,835 in / 1,795 out | 5,493 in / 585 out |
+| wall clock for the set | 171s | 296s |
+| median question | 6.1s | 11.1s |
+| sample question, tokens | 5,493 in / 585 out | 14,826 in / 2,397 out |
 
-Accuracy held on every question, including the two that need care: the one-purchase customer
-share, and the comparison against a truncated quarter. It is left unset by default because
-21 questions is enough to show no regression, not enough to prove robustness on questions
-nobody has asked yet. Turn it on if latency or cost matters more to you than that margin.
+`medium` is the default. `low` is roughly half the latency and a third of the tokens with
+no measured loss, including on the two questions that need care: the one-purchase customer
+share, and the comparison against a truncated quarter. Twenty-one questions is enough to
+show no regression, not enough to prove robustness on questions nobody has asked, which is
+the only reason `low` is not the default.
+
+`minimal` is rejected by `gemini-3.8-flash`.
 
 Switching provider is one line. `LLM_MODEL=anthropic:claude-sonnet-5` with the matching key
 and package works without touching any code.

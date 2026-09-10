@@ -51,6 +51,18 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 /* Datasets take what they need up to a third of the rail; chats take the rest. */
 .rail-datasets { flex: 0 1 auto; max-height: 34vh; }
 
+.clear-all {
+  padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--panel-2);
+  font-size: 11.5px; color: var(--dim); line-height: 1.4;
+}
+.clear-all > div { display: flex; gap: 6px; margin-top: 8px; }
+.clear-all button {
+  background: none; border: 1px solid var(--line); border-radius: 5px;
+  font-size: 11px; padding: 3px 9px; color: var(--dim);
+}
+.clear-all button.danger { color: var(--bad); border-color: var(--bad); }
+.clear-all button:hover { background: var(--panel); }
+
 .thread { display: flex; align-items: stretch; border-bottom: 1px solid var(--line); }
 .thread:hover { background: var(--panel-2); }
 .thread[aria-current="true"] { background: var(--panel-2); box-shadow: inset 2px 0 0 var(--accent); }

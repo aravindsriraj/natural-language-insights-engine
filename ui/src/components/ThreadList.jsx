@@ -10,18 +10,34 @@ function when(iso) {
   return then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-export default function ThreadList({ threads, activeId, onOpen, onNew, onDelete, busy }) {
+export default function ThreadList({ threads, activeId, onOpen, onNew, onDelete, onDeleteAll, busy }) {
   // Inline confirmation rather than window.confirm: a native dialog blocks the page and
   // there is no undo behind this button.
   const [confirming, setConfirming] = useState(null)
+  const [confirmingAll, setConfirmingAll] = useState(false)
 
   return (
     <>
       <div className="head" style={{ borderTop: '1px solid var(--line)' }}>
         <h2>Chats</h2>
         <span className="grow" />
+        {threads.length > 0 && !confirmingAll && (
+          <button className="btn ghost" title="Delete every conversation for this dataset"
+                  onClick={() => setConfirmingAll(true)} disabled={busy}>Clear all</button>
+        )}
         <button className="btn ghost" onClick={onNew} disabled={busy}>New chat</button>
       </div>
+
+      {confirmingAll && (
+        <div className="clear-all">
+          <span>Delete all {threads.length} conversations for this dataset? This cannot be undone.</span>
+          <div>
+            <button className="danger"
+                    onClick={() => { onDeleteAll(); setConfirmingAll(false) }}>Delete all</button>
+            <button onClick={() => setConfirmingAll(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       <div className="scroll">
         {threads.length === 0 && (

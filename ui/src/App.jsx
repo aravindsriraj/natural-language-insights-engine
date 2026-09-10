@@ -94,6 +94,14 @@ export default function App() {
     } catch (e) { setError(e.message) }
   }
 
+  async function removeAllThreads() {
+    try {
+      await api.deleteAllThreads(activeId)
+      newChat()
+      await refreshThreads(activeId)
+    } catch (e) { setError(e.message) }
+  }
+
   async function removeThread(id) {
     try {
       await api.deleteThread(id)
@@ -151,6 +159,7 @@ export default function App() {
           <ThreadList
             threads={threads} activeId={threadId} busy={busy}
             onOpen={openThread} onNew={newChat} onDelete={removeThread}
+            onDeleteAll={removeAllThreads}
           />
         )}
       </DatasetRail>

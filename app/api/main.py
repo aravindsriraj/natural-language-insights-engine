@@ -242,21 +242,45 @@ async def get_thread(thread_id: str):
     return {"thread_id": thread_id, "turns": turns}
 
 
+async def _forget_checkpoints(thread_ids: list[str]) -> None:
+    """Drop the agent's memory of these conversations. One saver for the whole batch."""
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+    if not thread_ids:
+        return
+    try:
+        async with AsyncSqliteSaver.from_conn_string(str(settings().checkpoints_db)) as saver:
+            for tid in thread_ids:
+                try:
+                    await saver.adelete_thread(tid)
+                except Exception as exc:  # pragma: no cover - the visible log is already gone
+                    print(f"[threads] checkpoint delete failed for {tid}: {exc}", flush=True)
+    except Exception as exc:  # pragma: no cover
+        print(f"[threads] could not open the checkpoint store: {exc}", flush=True)
+
+
+@app.delete("/api/threads", tags=["threads"])
+async def delete_all_threads(dataset_id: str | None = Query(None)):
+    """Delete every conversation, or every conversation for one dataset.
+
+    Returns the count rather than 204 so the caller can tell the user what happened.
+    """
+    thread_ids = jobs.all_thread_ids(dataset_id)
+    for tid in thread_ids:
+        jobs.delete_thread(tid)
+    await _forget_checkpoints(thread_ids)
+    return {"deleted": len(thread_ids)}
+
+
 @app.delete("/api/threads/{thread_id}", status_code=204, tags=["threads"])
 async def delete_thread(thread_id: str):
     """Forget a conversation, both the visible log and the agent's memory of it."""
-    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-
     if not jobs.thread_turns(thread_id):
         raise NotFound(f"Thread '{thread_id}' not found")
     jobs.delete_thread(thread_id)
     # Without this the log would be gone but the agent would still remember the
-    # conversation the next time that id was used.
-    try:
-        async with AsyncSqliteSaver.from_conn_string(str(settings().checkpoints_db)) as saver:
-            await saver.adelete_thread(thread_id)
-    except Exception as exc:  # pragma: no cover - the visible log is already gone
-        print(f"[threads] checkpoint delete failed for {thread_id}: {exc}", flush=True)
+    # conversation the next time that id came round.
+    await _forget_checkpoints([thread_id])
     return JSONResponse(status_code=204, content=None)
 
 

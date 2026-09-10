@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # Thinking models spend output tokens before answering. Lower efforts cut both the
     # thinking and, because the agent explores less, the number of turns. Verified against
     # the evaluation suite rather than assumed; see README.
-    llm_reasoning_effort: str = ""
+    llm_reasoning_effort: str = "medium"
     llm_fallback_model: str = "google_genai:gemini-2.5-flash"
     gemini_api_key: str = ""
 

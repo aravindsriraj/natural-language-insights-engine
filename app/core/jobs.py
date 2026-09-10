@@ -298,6 +298,19 @@ class JobManager:
             })
         return turns
 
+    def all_thread_ids(self, dataset_id: str | None = None) -> list[str]:
+        where = "kind='query' AND json_extract(payload,'$.thread_id') IS NOT NULL"
+        params: list[Any] = []
+        if dataset_id:
+            where += " AND dataset_id = ?"
+            params.append(dataset_id)
+        with self._conn() as con:
+            rows = con.execute(
+                f"SELECT DISTINCT json_extract(payload,'$.thread_id') AS t FROM jobs WHERE {where}",
+                params,
+            ).fetchall()
+        return [r["t"] for r in rows if r["t"]]
+
     def delete_thread(self, thread_id: str) -> int:
         """Forget a conversation. The checkpointer's copy is removed by the caller."""
         with self._conn() as con:

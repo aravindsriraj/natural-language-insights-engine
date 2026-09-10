@@ -41,6 +41,8 @@ export const listThreads = (datasetId) =>
   request(`/api/threads${datasetId ? `?dataset_id=${datasetId}` : ''}`).then((d) => d.threads)
 export const getThread = (id) => request(`/api/threads/${id}`).then((d) => d.turns)
 export const deleteThread = (id) => request(`/api/threads/${id}`, { method: 'DELETE' })
+export const deleteAllThreads = (datasetId) =>
+  request(`/api/threads${datasetId ? `?dataset_id=${datasetId}` : ''}`, { method: 'DELETE' })
 
 // Server-sent events for one job. Returns an unsubscribe function.
 export function streamJob(jobId, onEvent, onDone, onError) {

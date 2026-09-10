@@ -243,3 +243,30 @@ def test_deleting_a_thread_removes_its_turns(client):
     assert client.get("/api/threads/t-del").status_code == 404
     remaining = [t["thread_id"] for t in client.get("/api/threads").json()["threads"]]
     assert "t-del" not in remaining and "t-keep" in remaining
+
+
+def test_delete_all_threads_for_one_dataset(client):
+    a = wait(client, upload(client).json()["job_id"])["result"]["dataset_id"]
+    b = wait(client, upload(client, CSV_SIMPLE.replace("BOLT", "SCREW")).json()["job_id"])["result"]["dataset_id"]
+    _job_row(client, a, "q1", "t-a1")
+    _job_row(client, a, "q2", "t-a2")
+    _job_row(client, b, "q3", "t-b1")
+
+    r = client.request("DELETE", "/api/threads", params={"dataset_id": a})
+    assert r.status_code == 200 and r.json()["deleted"] == 2
+
+    left = [t["thread_id"] for t in client.get("/api/threads").json()["threads"]]
+    assert left == ["t-b1"], "deleting one dataset's chats must not touch another's"
+
+
+def test_delete_all_threads_everywhere(client):
+    ds = wait(client, upload(client).json()["job_id"])["result"]["dataset_id"]
+    for i in range(3):
+        _job_row(client, ds, f"q{i}", f"t-{i}")
+
+    assert client.request("DELETE", "/api/threads").json()["deleted"] == 3
+    assert client.get("/api/threads").json()["threads"] == []
+
+
+def test_delete_all_threads_when_there_are_none(client):
+    assert client.request("DELETE", "/api/threads").json()["deleted"] == 0
