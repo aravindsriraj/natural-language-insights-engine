@@ -18,6 +18,7 @@ from langchain.agents.middleware import (
     ModelRetryMiddleware,
     PIIMiddleware,
     ToolCallLimitMiddleware,
+    ToolErrorMiddleware,
     ToolRetryMiddleware,
 )
 
@@ -34,8 +35,8 @@ from app.agent.tools import AgentContext, build_tools, default_context
 from app.config import settings
 
 
-def build_agent(*, tracker: UsageTracker | None = None, checkpointer=None):
-    """Construct the agent. One per request is fine; the model client is cached."""
+def build_middleware(*, tracker: UsageTracker | None = None) -> list:
+    """The agent's constraints, separated from the agent so they can be inspected and tested."""
     s = settings()
     models = fallback_models()
 
@@ -50,6 +51,17 @@ def build_agent(*, tracker: UsageTracker | None = None, checkpointer=None):
         ModelCallLimitMiddleware(run_limit=s.agent_max_model_calls, exit_behavior="end"),
         ModelRetryMiddleware(max_retries=2, backoff_factor=2.0, initial_delay=1.0, jitter=True),
         ToolRetryMiddleware(max_retries=1, tools=["run_sql"], on_failure="continue"),
+        # run_sql handles its own failures with messages the agent can act on. This catches
+        # what escapes anywhere else, so a corrupt profile or an unreadable dataset costs
+        # one tool call rather than the whole run. Placed after the retry middleware so it
+        # sits outside it. The exception type is disclosed, never the message, which can
+        # carry paths or connection details.
+        ToolErrorMiddleware(
+            lambda exc, request: (
+                f"{request.tool_call['name']} failed with {type(exc).__name__}. "
+                "Try a different approach, or refuse if you cannot answer without it."
+            )
+        ),
         # Result sets from earlier turns are dead weight once summarised; evicting them
         # keeps a long follow-up thread from growing without bound.
         ContextEditingMiddleware(edits=[ClearToolUsesEdit(trigger=60_000, keep=3)]),
@@ -60,14 +72,18 @@ def build_agent(*, tracker: UsageTracker | None = None, checkpointer=None):
         middleware.append(ModelFallbackMiddleware(*models[1:]))
     if tracker is not None:
         middleware.append(usage_middleware(tracker))
+    return middleware
 
+
+def build_agent(*, tracker: UsageTracker | None = None, checkpointer=None):
+    """Construct the agent. One per request is fine; the model client is cached."""
     return create_agent(
         model=get_model(),
         tools=build_tools(),
         system_prompt=system_prompt(),
         response_format=Answer,
         context_schema=AgentContext,
-        middleware=middleware,
+        middleware=build_middleware(tracker=tracker),
         checkpointer=checkpointer,
     )
 
@@ -82,4 +98,5 @@ def invoke_config(thread_id: str) -> dict:
     }
 
 
-__all__ = ["build_agent", "invoke_config", "default_context", "AgentContext", "UsageTracker"]
+__all__ = ["build_agent", "build_middleware", "invoke_config", "default_context",
+           "AgentContext", "UsageTracker"]

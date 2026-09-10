@@ -168,3 +168,39 @@ def _runtime(dataset_id: str):
         tool_call_id="t",
         store=None,
     )
+
+
+
+# ------------------------------------------------------------------ tool failure
+
+def _tool_error_middleware(monkeypatch):
+    """Build the middleware list. A dummy key lets the model objects construct; nothing
+    reaches the network, so the test stays hermetic."""
+    from langchain.agents.middleware import ToolErrorMiddleware
+
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key-not-used")
+    from app.agent.agent import build_middleware
+
+    return next(m for m in build_middleware() if isinstance(m, ToolErrorMiddleware))
+
+
+def test_every_tool_is_covered_by_error_handling(monkeypatch):
+    """An exception in any tool must cost one tool call, not the whole run.
+
+    run_sql catches its own failures and returns something the agent can act on.
+    describe_columns and refuse do not, so this middleware has to be present and unscoped.
+    Without it a corrupt profile turns an answerable question into a 500.
+    """
+    mw = _tool_error_middleware(monkeypatch)
+    assert getattr(mw, "tools", None) in (None, [], ()), (
+        "ToolErrorMiddleware must cover every tool, not a subset"
+    )
+
+
+def test_tool_error_message_names_the_type_not_the_detail(monkeypatch):
+    """The handler must not pass an exception message through: it can carry paths."""
+    mw = _tool_error_middleware(monkeypatch)
+    request = type("R", (), {"tool_call": {"name": "describe_columns"}})()
+    out = mw.on_error(RuntimeError("/srv/data/secret.json is unreadable"), request)
+    assert "RuntimeError" in out
+    assert "secret.json" not in out

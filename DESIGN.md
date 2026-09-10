@@ -68,6 +68,7 @@ sent events to the browser, the query trail returned by the API, and stage label
 | Provider rate limit or blip | `ModelRetryMiddleware`, backoff with jitter | Nothing; it retries |
 | Provider outage | `ModelFallbackMiddleware`, second model | A slightly slower answer |
 | Rejected or malformed SQL | Returned as a tool result | Nothing; the agent corrects it |
+| Any other tool exception | `ToolErrorMiddleware`, type disclosed but not the message | Nothing; costs one tool call |
 | Query timeout | Tool result naming the limit | Nothing; the agent narrows the query |
 | Ambiguous question | `clarification` on the response | The answer, plus the question back |
 | Data cannot answer | `refuse` tool, terminal | An explicit refusal and what is missing |
